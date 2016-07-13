@@ -5,33 +5,17 @@ import android.os.Parcel;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Created by pal on 2016-07-11.
+ * Serializer using {@link Parcel}
  */
-//@SuppressWarnings({"SpellCheckingInspection", "unused"})
 public class ParcelSerializer {
 
-    private static Map<Class<?>, SerializableHandler> serializableHandlerMap = new HashMap<>();
-
-    private interface SerializableHandler {
-        void write(Parcel p, Object v);
-
-        Object read(Parcel p);
-    }
-
-    private static abstract class IntNumberHandler implements SerializableHandler {
-        @Override
-        public void write(Parcel p, Object v) {
-            p.writeInt(((Number) v).intValue());
-        }
-    }
-
     static Map<String, Class<?>> primitiveTypes = new HashMap<>();
+    private static Map<Class<?>, SerializableHandler> serializableHandlerMap = new HashMap<>();
 
     static {
         primitiveTypes.put("char", Character.TYPE);
@@ -166,7 +150,7 @@ public class ParcelSerializer {
      */
     public static byte[] serialize(Object original) {
         Parcel parcel = Parcel.obtain();
-        ParcelSerializer.writeObject(parcel, original);
+        writeObject(parcel, original);
         byte[] bytes = parcel.marshall();
         parcel.recycle();
         return bytes;
@@ -186,7 +170,7 @@ public class ParcelSerializer {
 
         Object instance = null;
         try {
-            instance = ParcelSerializer.readObject(p);
+            instance = readObject(p);
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
@@ -196,12 +180,11 @@ public class ParcelSerializer {
     }
 
     private static void writeObject(Parcel p, Object value) {
-        writeType(p, value.getClass());
-        writeValueByType(p, value.getClass(), value);
+        writeTypeValuePair(p, value);
     }
 
     private static Object readObject(Parcel p) throws ClassNotFoundException {
-        return readValueByType(p, p.readString());
+        return readTypeValuePair(p);
     }
 
     private static void writeType(Parcel p, Class<?> type) {
@@ -214,11 +197,14 @@ public class ParcelSerializer {
             return;
         }
 
-        if (clazz.isArray() && !CharSequence.class.equals(clazz)) {  // write array value
-            writeArray(p, clazz, value);
+        if (clazz.isArray()) {  // write array value
+            writeArray(p, value);
             return;
         } else if (List.class.isAssignableFrom(clazz)) {
             writeList(p, (List<?>) value);
+            return;
+        } else if (Map.class.isAssignableFrom(clazz)) {
+            writeMap(p, (Map<?, ?>) value);
             return;
         } else {
             SerializableHandler handler = getSerializableHandler(clazz);
@@ -231,29 +217,28 @@ public class ParcelSerializer {
         writeObjectInner(p, clazz, value);
     }
 
-    private static void writeArray(Parcel p, Class<?> clazz, Object value) {
+    private static void writeArray(Parcel p, Object value) {
         int len = Array.getLength(value);
         p.writeInt(len);
         for (int i = 0; i < len; i++) {
-            writeValueByType(p, clazz.getComponentType(), Array.get(value, i));
+            writeTypeValuePair(p, Array.get(value, i));
         }
     }
 
     private static void writeList(Parcel p, List<?> value) {
-        //noinspection SuspiciousMethodCalls
-        value.removeAll(Collections.singleton(null));   // 对于list的空值，不写
-
         int len = value.size();
         p.writeInt(len);
         if (len <= 0) {
             return;
         }
 
-        Class<?> itemClazz = value.get(0).getClass();
-        p.writeString(itemClazz.getName());
         for (int i = 0; i < len; i++) {
-            writeValueByType(p, itemClazz, value.get(i));
+            writeTypeValuePair(p, value.get(i));
         }
+    }
+
+    private static String readType(Parcel p) {
+        return p.readString();
     }
 
     private static Object readValueByType(Parcel p, String clazzName) throws ClassNotFoundException {
@@ -263,10 +248,12 @@ public class ParcelSerializer {
         }
 
         Class<?> clazz = findClassFromName(clazzName);
-        if (clazz.isArray() && !CharSequence.class.equals(clazz)) {  // read array
+        if (clazz.isArray()) {  // read array
             return readArray(p, clazz);
         } else if (List.class.isAssignableFrom(clazz)) {
             return readList(p, clazz);
+        } else if (Map.class.isAssignableFrom(clazz)) {
+            return readMap(p, clazz);
         } else {
             SerializableHandler handler = getSerializableHandler(clazz);
             if (handler != null) {
@@ -282,7 +269,7 @@ public class ParcelSerializer {
 
         Object arr = Array.newInstance(clazz.getComponentType(), len);
         for (int i = 0; i < len; i++) {
-            Array.set(arr, i, readValueByType(p, clazz.getComponentType().getName()));
+            Array.set(arr, i, readTypeValuePair(p));
         }
         return arr;
     }
@@ -298,10 +285,9 @@ public class ParcelSerializer {
             return null;
         }
 
-        String itemClassName = p.readString();
         for (int i = 0; i < len; i++) {
             //noinspection unchecked
-            obj.add(readValueByType(p, itemClassName));
+            obj.add(readTypeValuePair(p));
         }
         return obj;
     }
@@ -325,9 +311,7 @@ public class ParcelSerializer {
             }
 
             p.writeString(field.getName()); // write object field name
-            Class<?> type = fieldValue != null ? fieldValue.getClass() : field.getType();
-            writeType(p, type);
-            writeValueByType(p, type, fieldValue);
+            writeTypeValuePair(p, fieldValue);
         }
     }
 
@@ -336,8 +320,7 @@ public class ParcelSerializer {
         Map<String, Field> fieldMap = Jock.allNonStaticFields(clazz);
         for (int i = 0; i < fieldMap.size(); i++) {
             String fieldName = p.readString();
-            String fieldType = p.readString();
-            Object fieldValue = readValueByType(p, fieldType);
+            Object fieldValue = readTypeValuePair(p);
 
             Field field = fieldMap.get(fieldName);
             if (field != null) {
@@ -349,6 +332,38 @@ public class ParcelSerializer {
             }
         }
         return object;
+    }
+
+    private static void writeMap(Parcel p, Map<?, ?> map) {
+        p.writeInt(map.size()); // write size
+        for (Map.Entry entry : map.entrySet()) {
+            writeTypeValuePair(p, entry.getKey());
+            writeTypeValuePair(p, entry.getValue());
+        }
+    }
+
+    private static Object readMap(Parcel p, Class<?> mapClazz) throws ClassNotFoundException {
+        Map map = (Map) InstancePool.newInstance(mapClazz);
+        int size = p.readInt();
+        for (int i = 0; i < size; i++) {
+            //noinspection unchecked
+            map.put(readTypeValuePair(p), readTypeValuePair(p));
+        }
+        return map;
+    }
+
+    private static Object readTypeValuePair(Parcel p) throws ClassNotFoundException {
+        return readValueByType(p, readType(p));
+    }
+
+    private static void writeTypeValuePair(Parcel p, Object value) {
+        Class<?> valueClazz = getTypeClass(value);
+        writeType(p, valueClazz);
+        writeValueByType(p, valueClazz, value);
+    }
+
+    private static Class<?> getTypeClass(Object value) {
+        return value == null ? NullValue.class : value.getClass();
     }
 
     private static SerializableHandler getSerializableHandler(Class<?> clazz) {
@@ -369,6 +384,24 @@ public class ParcelSerializer {
         }
 
         return handler;
+    }
+
+    // a placeholder interface for null value
+    private interface NullValue {
+
+    }
+
+    private interface SerializableHandler {
+        void write(Parcel p, Object v);
+
+        Object read(Parcel p);
+    }
+
+    private static abstract class IntNumberHandler implements SerializableHandler {
+        @Override
+        public void write(Parcel p, Object v) {
+            p.writeInt(((Number) v).intValue());
+        }
     }
 
 }

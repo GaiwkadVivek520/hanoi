@@ -48,6 +48,8 @@ public class InstancePool {
         // fast new instance
         if (ArrayList.class.equals(clazz)) {
             return new ArrayList<>();
+        } else if (HashMap.class.equals(clazz)) {
+            return new HashMap<>();
         }
 
         // using reflect constructor
