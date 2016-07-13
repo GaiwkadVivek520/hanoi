@@ -2,13 +2,15 @@ package com.fairysword.objectcopy;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,16 +19,17 @@ import java.util.regex.Pattern;
 /**
  * The java object copy kit (now only support android)
  */
+@SuppressWarnings({"unused", "SpellCheckingInspection"})
 public class Jock {
 
     private static Jock sInstance = null;
 
-    private static final ConcurrentHashMap<Class<?>, List<Field>> fieldsCache = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Class<?>, Map<String, Field>> nonStaticFieldsCache = new ConcurrentHashMap<>();
     private final Set<Class<?>> ignoredClasses = new HashSet<>();
     private final Set<Class<?>> immutableClasses = new HashSet<>();
 
     /**
-     * @return
+     * @return get Jock instance
      */
     public synchronized static Jock getInstance() {
         if (sInstance == null) {
@@ -36,12 +39,17 @@ public class Jock {
         return sInstance;
     }
 
+    /**
+     * @param original the source object
+     * @return the copy of the source object
+     * @throws CopyException
+     */
     public Object copy(Object original) throws CopyException {
         return copyInternal(original);
     }
 
     /**
-     * register the class you don not want to copy
+     * register the class you don not want to deep copy
      *
      * @param clazz the class registered
      */
@@ -55,17 +63,11 @@ public class Jock {
     }
 
     private boolean isImmutable(Class<?> clazz) {
-        if (immutableClasses.contains(clazz)) {
-            return true;
-        }
-        return false;
+        return immutableClasses.contains(clazz);
     }
 
-    private boolean shouldCopy(Class<?> clazz) {
-        if (ignoredClasses.contains(clazz)) {
-            return false;
-        }
-        return true;
+    private boolean shouldNotCopy(Class<?> clazz) {
+        return ignoredClasses.contains(clazz);
     }
 
     private Object copyInternal(Object original) throws CopyException {
@@ -75,10 +77,10 @@ public class Jock {
 
         Class<?> clazz = original.getClass();
         if (Jock.class.equals(clazz)) {
-            throw new CopyException("can not copy the Jock self");
+            throw new CopyException("can not copy Jock self");
         }
 
-        if (isImmutable(clazz) || !shouldCopy(clazz)) {
+        if (isImmutable(clazz) || shouldNotCopy(clazz)) {
             return original;
         }
 
@@ -96,9 +98,7 @@ public class Jock {
             return null;
         }
 
-        List<Field> fields = allFields(clazz);
-        copyFields(fields, original, copy);
-
+        copyFields(allNonStaticFields(clazz).values(), original, copy);
         return copy;
     }
 
@@ -109,6 +109,7 @@ public class Jock {
         final Object newInstance = Array.newInstance(clazz.getComponentType(), length);
 
         if (clazz.getComponentType().isPrimitive()) { // TODO custom immutable ?
+            //noinspection SuspiciousSystemArraycopy
             System.arraycopy(original, 0, newInstance, 0, length);
         } else {
             for (int i = 0; i < length; i++) {
@@ -120,37 +121,43 @@ public class Jock {
         return newInstance;
     }
 
-    private static void addAll(final List<Field> l, final Field[] fields) {
+    private static void addAll(final Map<String, Field> l, final Field[] fields) {
         for (final Field field : fields) {
             if (!field.isAccessible()) {
                 field.setAccessible(true);
             }
-            l.add(field);
+            if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            l.put(field.getName(), field);
         }
     }
 
-    private static List<Field> allFields(final Class<?> c) {
-        List<Field> l = fieldsCache.get(c);
-        if (l == null) {
-            l = new LinkedList<>();
+    /**
+     * @param c class
+     * @return all non-static fileds
+     */
+    static Map<String, Field> allNonStaticFields(final Class<?> c) {
+        Map<String, Field> fieldList = nonStaticFieldsCache.get(c);
+        if (fieldList == null) {
+            fieldList = new HashMap<>();
             final Field[] fields = c.getDeclaredFields();
-            addAll(l, fields);
+            addAll(fieldList, fields);
             Class<?> sc = c;
             while ((sc = sc.getSuperclass()) != Object.class && sc != null) {
-                addAll(l, sc.getDeclaredFields());
+                addAll(fieldList, sc.getDeclaredFields());
             }
-            fieldsCache.putIfAbsent(c, l);
+            nonStaticFieldsCache.putIfAbsent(c, fieldList);
         }
-        return l;
+        return fieldList;
     }
 
-    private void copyFields(List<Field> fields, Object from, Object to) throws CopyException {
+    private void copyFields(Collection<Field> fields, Object from, Object to) throws CopyException {
         if (fields == null || fields.size() <= 0) {
             return;
         }
 
-        for (int i = 0; i < fields.size(); i++) {
-            Field field = fields.get(i);
+        for (Field field : fields) {
             if (field == null) {
                 continue;
             }

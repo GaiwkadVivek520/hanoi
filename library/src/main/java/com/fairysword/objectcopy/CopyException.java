@@ -1,7 +1,7 @@
 package com.fairysword.objectcopy;
 
 /**
- * Created by xiongjunhui on 2016-06-18.
+ * Created by pal on 2016-07-11.
  */
 public class CopyException extends Exception {
 
