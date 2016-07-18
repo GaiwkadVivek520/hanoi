@@ -6,13 +6,13 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
- * Serializer using {@link Parcel}
+ * Serializer / Deserializer using {@link Parcel}
  */
-public class ParcelSerializer {
+@SuppressWarnings("SpellCheckingInspection")
+public class Sedes {
 
     static Map<String, Class<?>> primitiveTypes = new HashMap<>();
     private static Map<Class<?>, SerializableHandler> serializableHandlerMap = new HashMap<>();
@@ -179,6 +179,10 @@ public class ParcelSerializer {
         return instance;
     }
 
+    /**
+     * write and read functions
+     */
+
     private static void writeObject(Parcel p, Object value) {
         writeTypeValuePair(p, value);
     }
@@ -187,8 +191,14 @@ public class ParcelSerializer {
         return readTypeValuePair(p);
     }
 
-    private static void writeType(Parcel p, Class<?> type) {
-        p.writeString(type.getName());
+    private static void writeTypeValuePair(Parcel p, Object value) {
+        Class<?> valueClazz = getTypeClass(value);
+        writeType(p, valueClazz);
+        writeValueByType(p, valueClazz, value);
+    }
+
+    private static Object readTypeValuePair(Parcel p) throws ClassNotFoundException {
+        return readValueByType(p, readType(p));
     }
 
     private static void writeValueByType(Parcel p, Class<?> clazz, Object value) {
@@ -200,8 +210,8 @@ public class ParcelSerializer {
         if (clazz.isArray()) {  // write array value
             writeArray(p, value);
             return;
-        } else if (List.class.isAssignableFrom(clazz)) {
-            writeList(p, (List<?>) value);
+        } else if (Collection.class.isAssignableFrom(clazz)) {
+            writeCollection(p, (Collection<?>) value);
             return;
         } else if (Map.class.isAssignableFrom(clazz)) {
             writeMap(p, (Map<?, ?>) value);
@@ -217,30 +227,6 @@ public class ParcelSerializer {
         writeObjectInner(p, clazz, value);
     }
 
-    private static void writeArray(Parcel p, Object value) {
-        int len = Array.getLength(value);
-        p.writeInt(len);
-        for (int i = 0; i < len; i++) {
-            writeTypeValuePair(p, Array.get(value, i));
-        }
-    }
-
-    private static void writeList(Parcel p, List<?> value) {
-        int len = value.size();
-        p.writeInt(len);
-        if (len <= 0) {
-            return;
-        }
-
-        for (int i = 0; i < len; i++) {
-            writeTypeValuePair(p, value.get(i));
-        }
-    }
-
-    private static String readType(Parcel p) {
-        return p.readString();
-    }
-
     private static Object readValueByType(Parcel p, String clazzName) throws ClassNotFoundException {
         boolean isNull = p.readInt() == 0;
         if (isNull) {
@@ -250,8 +236,8 @@ public class ParcelSerializer {
         Class<?> clazz = findClassFromName(clazzName);
         if (clazz.isArray()) {  // read array
             return readArray(p, clazz);
-        } else if (List.class.isAssignableFrom(clazz)) {
-            return readList(p, clazz);
+        } else if (Collection.class.isAssignableFrom(clazz)) {
+            return readCollection(p, clazz);
         } else if (Map.class.isAssignableFrom(clazz)) {
             return readMap(p, clazz);
         } else {
@@ -262,42 +248,6 @@ public class ParcelSerializer {
         }
 
         return readObjectInner(p, clazz);
-    }
-
-    private static Object readArray(Parcel p, Class<?> clazz) throws ClassNotFoundException {
-        int len = p.readInt();
-
-        Object arr = Array.newInstance(clazz.getComponentType(), len);
-        for (int i = 0; i < len; i++) {
-            Array.set(arr, i, readTypeValuePair(p));
-        }
-        return arr;
-    }
-
-    private static Object readList(Parcel p, Class<?> clazz) throws ClassNotFoundException {
-        int len = p.readInt();
-        List obj = (List) InstancePool.newInstance(clazz);
-        if (len <= 0) {
-            return obj;
-        }
-
-        if (obj == null) {
-            return null;
-        }
-
-        for (int i = 0; i < len; i++) {
-            //noinspection unchecked
-            obj.add(readTypeValuePair(p));
-        }
-        return obj;
-    }
-
-    private static Class<?> findClassFromName(String clazzName) throws ClassNotFoundException {
-        Class<?> clazz = primitiveTypes.get(clazzName);
-        if (clazz == null) {
-            clazz = Class.forName(clazzName);
-        }
-        return clazz;
     }
 
     private static void writeObjectInner(Parcel p, Class<?> clazz, Object object) {
@@ -334,6 +284,32 @@ public class ParcelSerializer {
         return object;
     }
 
+    private static void writeType(Parcel p, Class<?> type) {
+        p.writeString(type.getName());
+    }
+
+    private static String readType(Parcel p) {
+        return p.readString();
+    }
+
+    private static void writeArray(Parcel p, Object value) {
+        int len = Array.getLength(value);
+        p.writeInt(len);
+        for (int i = 0; i < len; i++) {
+            writeTypeValuePair(p, Array.get(value, i));
+        }
+    }
+
+    private static Object readArray(Parcel p, Class<?> clazz) throws ClassNotFoundException {
+        int len = p.readInt();
+
+        Object arr = Array.newInstance(clazz.getComponentType(), len);
+        for (int i = 0; i < len; i++) {
+            Array.set(arr, i, readTypeValuePair(p));
+        }
+        return arr;
+    }
+
     private static void writeMap(Parcel p, Map<?, ?> map) {
         p.writeInt(map.size()); // write size
         for (Map.Entry entry : map.entrySet()) {
@@ -352,14 +328,37 @@ public class ParcelSerializer {
         return map;
     }
 
-    private static Object readTypeValuePair(Parcel p) throws ClassNotFoundException {
-        return readValueByType(p, readType(p));
+    private static void writeCollection(Parcel p, Collection<?> set) {
+        p.writeInt(set.size());
+        for (Object item : set) {
+            writeTypeValuePair(p, item);
+        }
     }
 
-    private static void writeTypeValuePair(Parcel p, Object value) {
-        Class<?> valueClazz = getTypeClass(value);
-        writeType(p, valueClazz);
-        writeValueByType(p, valueClazz, value);
+    private static Object readCollection(Parcel p, Class<?> setClazz) throws ClassNotFoundException {
+        int size = p.readInt();
+        Collection set = (Collection) InstancePool.newInstance(setClazz);
+        if (set == null) {
+            return null;
+        }
+
+        for (int i = 0; i < size; i++) {
+            //noinspection unchecked
+            set.add(readTypeValuePair(p));
+        }
+        return set;
+    }
+
+    /**
+     * help functions
+     */
+
+    private static Class<?> findClassFromName(String clazzName) throws ClassNotFoundException {
+        Class<?> clazz = primitiveTypes.get(clazzName);
+        if (clazz == null) {
+            clazz = Class.forName(clazzName);
+        }
+        return clazz;
     }
 
     private static Class<?> getTypeClass(Object value) {
