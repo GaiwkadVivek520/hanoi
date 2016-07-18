@@ -1,4 +1,4 @@
-package com.fairysword.objectcopy;
+package com.fairysword.objectcopy.instance;
 
 /**
  * Created by pal on 2016-07-18.

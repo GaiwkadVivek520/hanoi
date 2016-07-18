@@ -1,5 +1,7 @@
 package com.fairysword.objectcopy;
 
+import com.fairysword.objectcopy.instance.InstancePool;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;

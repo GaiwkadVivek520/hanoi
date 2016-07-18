@@ -1,4 +1,4 @@
-package com.fairysword.objectcopy;
+package com.fairysword.objectcopy.utils;
 
 import android.support.annotation.CheckResult;
 import android.support.annotation.NonNull;

@@ -2,6 +2,9 @@ package com.fairysword.objectcopy;
 
 import android.os.Parcel;
 
+import com.fairysword.objectcopy.instance.InstancePool;
+import com.fairysword.objectcopy.utils.Hack;
+
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.Collection;

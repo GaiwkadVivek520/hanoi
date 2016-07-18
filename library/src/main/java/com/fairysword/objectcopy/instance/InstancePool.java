@@ -1,4 +1,4 @@
-package com.fairysword.objectcopy;
+package com.fairysword.objectcopy.instance;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -66,7 +66,7 @@ public class InstancePool {
         voidParamInstanceMap.put(LinkedHashSet.class, LinkedHashSet::new);
     }
 
-    static Object newInstance(Class<?> clazz) {
+    public static Object newInstance(Class<?> clazz) {
         // fast new instance
         Object[] objects = new Object[1];
         if (fastNewInstance(clazz, objects)) {
