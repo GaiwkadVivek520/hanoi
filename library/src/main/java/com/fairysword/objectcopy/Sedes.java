@@ -167,6 +167,10 @@ public class Sedes {
      */
     @SuppressWarnings("TryWithIdenticalCatches")
     public static Object deserialize(byte[] bytes) {
+        if (bytes == null) {
+            return null;
+        }
+        
         Parcel p = Parcel.obtain();
         p.unmarshall(bytes, 0, bytes.length);
         p.setDataPosition(0);
