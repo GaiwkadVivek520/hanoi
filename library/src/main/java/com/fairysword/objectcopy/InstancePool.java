@@ -4,6 +4,10 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,6 +19,7 @@ public class InstancePool {
     private static Map<Class<?>, Object> defaultValues = new HashMap<>();
     private static Map<Class<?>, Constructor<?>> defaultConstructors = new ConcurrentHashMap<>();
     private static Map<Constructor<?>, Object[]> constructorDefaultParams = new ConcurrentHashMap<>();
+    private static Map<Class<?>, VoidParamInstance> voidParamInstanceMap = new HashMap<>();
 
     // default values
     static {
@@ -44,12 +49,28 @@ public class InstancePool {
         defaultValues.put(Double.class, 0d);
     }
 
+    static {
+        // for list
+        voidParamInstanceMap.put(ArrayList.class, ArrayList::new);
+        voidParamInstanceMap.put(LinkedList.class, LinkedList::new);
+
+        // for map
+        voidParamInstanceMap.put(HashMap.class, HashMap::new);
+        voidParamInstanceMap.put(LinkedHashMap.class, LinkedHashMap::new);
+        voidParamInstanceMap.put(ConcurrentHashMap.class, ConcurrentHashMap::new);
+        voidParamInstanceMap.put(android.util.ArrayMap.class, android.util.ArrayMap::new);
+        voidParamInstanceMap.put(android.support.v4.util.ArrayMap.class, android.support.v4.util.ArrayMap::new);
+
+        // for set
+        voidParamInstanceMap.put(HashSet.class, HashSet::new);
+        voidParamInstanceMap.put(LinkedHashSet.class, LinkedHashSet::new);
+    }
+
     static Object newInstance(Class<?> clazz) {
         // fast new instance
-        if (ArrayList.class.equals(clazz)) {
-            return new ArrayList<>();
-        } else if (HashMap.class.equals(clazz)) {
-            return new HashMap<>();
+        Object[] objects = new Object[1];
+        if (fastNewInstance(clazz, objects)) {
+            return objects[0];
         }
 
         // using reflect constructor
@@ -62,6 +83,23 @@ public class InstancePool {
         }
 
         return newInstance(constructor);
+    }
+
+    private static boolean fastNewInstance(Class<?> clazz, Object[] objects) {
+        VoidParamInstance voidParamInstance = voidParamInstanceMap.get(clazz);
+        if (voidParamInstance != null) {
+            objects[0] = voidParamInstance.newInstance();
+            return true;
+        }
+        return false;
+    }
+
+    private static Constructor<?> findConstructor(Class<?> clazz) {
+        Constructor<?>[] allConstructors = clazz.getDeclaredConstructors();
+        if (allConstructors != null && allConstructors.length > 0) {
+            return allConstructors[0];
+        }
+        return null;
     }
 
     private static Object newInstance(Constructor<?> constructor) {
@@ -79,14 +117,6 @@ public class InstancePool {
             e.printStackTrace();
         }
         return object;
-    }
-
-    private static Constructor<?> findConstructor(Class<?> clazz) {
-        Constructor<?>[] allConstructors = clazz.getDeclaredConstructors();
-        if (allConstructors != null && allConstructors.length > 0) {
-            return allConstructors[0];
-        }
-        return null;
     }
 
     private static Object[] makeDefaultParams(Constructor<?> constructor) {
