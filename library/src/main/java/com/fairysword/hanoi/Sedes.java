@@ -1,9 +1,9 @@
-package com.fairysword.objectcopy;
+package com.fairysword.hanoi;
 
 import android.os.Parcel;
 
-import com.fairysword.objectcopy.instance.InstancePool;
-import com.fairysword.objectcopy.utils.Hack;
+import com.fairysword.hanoi.instance.InstancePool;
+import com.fairysword.hanoi.utils.Hack;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
@@ -170,7 +170,7 @@ public class Sedes {
         if (bytes == null) {
             return null;
         }
-        
+
         Parcel p = Parcel.obtain();
         p.unmarshall(bytes, 0, bytes.length);
         p.setDataPosition(0);

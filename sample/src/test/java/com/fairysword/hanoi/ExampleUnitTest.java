@@ -1,4 +1,4 @@
-package com.fairysword.objectcopy;
+package com.fairysword.hanoi;
 
 import org.junit.Test;
 

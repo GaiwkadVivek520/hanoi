@@ -1,6 +1,6 @@
-package com.fairysword.objectcopy;
+package com.fairysword.hanoi;
 
-import com.fairysword.objectcopy.instance.InstancePool;
+import com.fairysword.hanoi.instance.InstancePool;
 
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;

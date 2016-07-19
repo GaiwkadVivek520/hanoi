@@ -1,4 +1,4 @@
-package com.fairysword.objectcopy.instance;
+package com.fairysword.hanoi.instance;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

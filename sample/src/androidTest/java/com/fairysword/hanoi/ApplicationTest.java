@@ -1,4 +1,4 @@
-package com.fairysword.objectcopy;
+package com.fairysword.hanoi;
 
 import android.app.Application;
 import android.test.ApplicationTestCase;

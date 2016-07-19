@@ -1,4 +1,4 @@
-package com.fairysword.objectcopy;
+package com.fairysword.hanoi;
 
 /**
  * Created by pal on 2016-07-11.
